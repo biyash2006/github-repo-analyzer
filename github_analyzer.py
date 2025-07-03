@@ -1,5 +1,6 @@
 import requests
 import click
+import pandas as pd
 
 BASE_URL = "https://api.github.com"
 
@@ -38,7 +39,59 @@ def fetch_pr_stats(owner, repo):
 
     return open_count, closed_count
 
-def analyze_repo(owner, repo):
+def export_to_csv(repo_data, contributors, issue_stats, pr_stats, filename="repo_stats.csv"):
+    rows = []
+
+    # Add basic repo info
+    rows.append({
+        "Metric": "Repository",
+        "Value": repo_data["full_name"]
+    })
+    rows.append({
+        "Metric": "Stars",
+        "Value": repo_data["stargazers_count"]
+    })
+    rows.append({
+        "Metric": "Forks",
+        "Value": repo_data["forks_count"]
+    })
+    rows.append({
+        "Metric": "Open Issues (Raw)",
+        "Value": repo_data["open_issues_count"]
+    })
+
+    # Add issue stats
+    rows.append({
+        "Metric": "Open Issues",
+        "Value": issue_stats[0]
+    })
+    rows.append({
+        "Metric": "Closed Issues",
+        "Value": issue_stats[1]
+    })
+
+    # Add PR stats
+    rows.append({
+        "Metric": "Open PRs",
+        "Value": pr_stats[0]
+    })
+    rows.append({
+        "Metric": "Closed/Merged PRs",
+        "Value": pr_stats[1]
+    })
+
+    # Add contributor info
+    for contributor in contributors[:5]:
+        rows.append({
+            "Metric": f"Contributor - {contributor['login']}",
+            "Value": contributor["contributions"]
+        })
+
+    df = pd.DataFrame(rows)
+    df.to_csv(filename, index=False)
+    print(f"\n📁 Data exported to {filename}")
+
+def analyze_repo(owner, repo, export=False):
     repo_data = fetch_repo_data(owner, repo)
     contributors = fetch_contributors(owner, repo)
 
@@ -60,12 +113,24 @@ def analyze_repo(owner, repo):
     print(f"🟢 Open PRs: {open_prs}")
     print(f"🔴 Closed/Merged PRs: {closed_prs}")
 
-# 👇 This part is new!
+    if export:
+        export_to_csv(
+            repo_data,
+            contributors,
+            (open_issues, closed_issues),
+            (open_prs, closed_prs)
+        )
+
+
 @click.command()
 @click.option('--owner', prompt='GitHub Owner', help='The username or organization that owns the repo')
 @click.option('--repo', prompt='Repository Name', help='The name of the GitHub repository')
-def main(owner, repo):
-    analyze_repo(owner, repo)
+@click.option('--export', is_flag=True, help='Export the results to CSV')
+
+
+def main(owner, repo, export):
+    analyze_repo(owner, repo, export)
+
 
 if __name__ == "__main__":
     main()
