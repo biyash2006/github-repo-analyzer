@@ -7,19 +7,34 @@ BASE_URL = "https://api.github.com"
 def fetch_repo_data(owner, repo):
     url = f"{BASE_URL}/repos/{owner}/{repo}"
     response = requests.get(url)
+
+    if response.status_code == 404:
+        raise ValueError(f"❌ Repository '{owner}/{repo}' not found.")
+    if response.status_code == 403:
+        raise RuntimeError("❌ GitHub API rate limit exceeded. Please try again later.")
+
     return response.json()
 
 def fetch_contributors(owner, repo):
     url = f"{BASE_URL}/repos/{owner}/{repo}/contributors"
     response = requests.get(url)
+    if response.status_code == 403:
+        raise RuntimeError("❌ GitHub API rate limit exceeded. Try again later.")
     return response.json()
 
 def fetch_issue_stats(owner, repo):
     open_url = f"{BASE_URL}/repos/{owner}/{repo}/issues?state=open&per_page=1"
     closed_url = f"{BASE_URL}/repos/{owner}/{repo}/issues?state=closed&per_page=1"
 
-    open_issues = requests.get(open_url).links.get('last', {}).get('url', '')
-    closed_issues = requests.get(closed_url).links.get('last', {}).get('url', '')
+    open_response = requests.get(open_url)
+    closed_response = requests.get(closed_url)
+
+    # Rate limit check
+    if open_response.status_code == 403 or closed_response.status_code == 403:
+        raise RuntimeError("❌ GitHub API rate limit exceeded. Please try again later.")
+
+    open_issues = open_response.links.get('last', {}).get('url', '')
+    closed_issues = closed_response.links.get('last', {}).get('url', '')
 
     open_count = int(open_issues.split('page=')[-1]) if open_issues else 0
     closed_count = int(closed_issues.split('page=')[-1]) if closed_issues else 0
@@ -31,8 +46,15 @@ def fetch_pr_stats(owner, repo):
     open_url = f"{BASE_URL}/repos/{owner}/{repo}/pulls?state=open&per_page=1"
     closed_url = f"{BASE_URL}/repos/{owner}/{repo}/pulls?state=closed&per_page=1"
 
-    open_prs = requests.get(open_url).links.get('last', {}).get('url', '')
-    closed_prs = requests.get(closed_url).links.get('last', {}).get('url', '')
+    open_response = requests.get(open_url)
+    closed_response = requests.get(closed_url)
+
+    # Handle API rate limiting
+    if open_response.status_code == 403 or closed_response.status_code == 403:
+        raise RuntimeError("❌ GitHub API rate limit exceeded. Please try again later.")
+
+    open_prs = open_response.links.get('last', {}).get('url', '')
+    closed_prs = closed_response.links.get('last', {}).get('url', '')
 
     open_count = int(open_prs.split('page=')[-1]) if open_prs else 0
     closed_count = int(closed_prs.split('page=')[-1]) if closed_prs else 0
